@@ -6,6 +6,7 @@ use futures_util::SinkExt;
 use warp::ws::WebSocket;
 use std::sync::Arc;
 use log::{error, debug};
+use crate::models::User;
 
 pub async fn save_message_to_db(message: &str) -> Result<(), Box<dyn StdError>> {
     let (client, connection) =
@@ -57,6 +58,29 @@ pub async fn send_message_history(client_ws_sender: Arc<TokioMutex<SplitSink<Web
             return Err(Box::new(e));
         }
     }
+
+    Ok(())
+}
+
+pub async fn save_user_to_db(user: User) -> Result<(), Box<dyn StdError>> {
+    let (client, connection) =
+        tokio_postgres::connect("host=localhost user=cyb3ria password=!Abs123 dbname=cyb3ria_db", NoTls)
+            .await
+            .expect("Failed to connect to database");
+
+        tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    debug!("Saving user to database: {}", user.username);
+
+    client.execute(
+        "INSERT INTO users (username, password_hash, invitation_code) VALUES ($1, $2, $3)",
+        &[&user.username, &user.password_hash, &user.invitation_code],
+    )
+    .await?;
 
     Ok(())
 }

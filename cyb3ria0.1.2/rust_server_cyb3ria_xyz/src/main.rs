@@ -9,6 +9,7 @@ use log::info;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use handlers::client_connection;
+use handlers::register_route;
 
 type Clients = Arc<Mutex<std::collections::HashMap<String, usize>>>;
 type Sender = Arc<Mutex<broadcast::Sender<String>>>;
@@ -40,6 +41,10 @@ async fn main() {
             })
         });
 
+    let register_route = register_route();
+
+    let routes = chat_route.or(register_route);
+
     info!("Starting server on 127.0.0.1:8081");
-    warp::serve(chat_route).run(([127, 0, 0, 1], 8081)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], 8081)).await;
 }

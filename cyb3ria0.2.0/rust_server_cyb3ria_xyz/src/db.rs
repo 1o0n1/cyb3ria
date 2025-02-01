@@ -185,7 +185,7 @@ pub async fn save_device_to_db(device: Device) -> Result<(), Box<dyn StdError + 
 }
 
 /// Ищет устройство по IP-адресу
-pub async fn find_device_by_ip_mac(ip_address: &str, mac_address: Option<&str>) -> Result<Option<Device>, Box<dyn StdError + Send + Sync>> {
+pub async fn find_device_by_ip_mac(ip_address: &str, _mac_address: Option<&str>) -> Result<Option<Device>, Box<dyn StdError + Send + Sync>> {
     let (client, connection) =
         tokio_postgres::connect("host=localhost user=cyb3ria password=!Abs123 dbname=cyb3ria_db", NoTls)
             .await

@@ -11,7 +11,7 @@
     <form id="registerForm">
         <label for="username">Username:</label><br>
         <input type="text" id="username" name="username" required title="Username must be between 3 and 16 characters"><br>
-        <small>Username must be between 3 and 16 characters</small><br>
+         <small>Username must be between 3 and 16 characters</small><br>
         <label for="password">Password:</label><br>
         <input type="password" id="password" name="password" required title="Password must be between 6 and 16 characters"><br>
         <small>Password must be between 6 and 16 characters</small><br>
@@ -26,7 +26,8 @@
         <button type="submit">Register</button>
     </form>
     <div id="result"></div>
-    <script>
+    <script src="/static/js/utils.js"></script>
+     <script>
         // Получаем IP-адрес клиента
         fetch('https://api.ipify.org?format=json')
             .then(response => response.json())
@@ -39,8 +40,8 @@
 
         // MAC-адрес нельзя получить напрямую в браузере
         document.getElementById('macAddress').value = '00:00:00:00:00:00'; // Заглушка
-
-        document.getElementById('registerForm').addEventListener('submit', function(event) {
+    
+          document.getElementById('registerForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
             const username = document.getElementById('username').value;
@@ -49,46 +50,20 @@
             const invitationCode = document.getElementById('invitationCode').value;
             const ipAddress = document.getElementById('ipAddress').value;
             const macAddress = document.getElementById('macAddress').value;
-
-            if (!username || !password || !repeatPassword || !invitationCode) {
-                document.getElementById('result').textContent = 'Please fill in all fields.';
-                return;
-            }
-
-            fetch('/api/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+            try {
+             const data = await sendRequest('/api/register', 'POST', {
                     username: username,
                     password: password,
                     repeat_password: repeatPassword,
                     invitation_code: invitationCode,
                     ip_address: ipAddress,
                     mac_address: macAddress
-                })
-            })
-            .then(async response => {
-                if (!response.ok) {
-                  try {
-                      const errorData = await response.json();
-                      throw new Error(errorData.message);
-                   } catch (jsonError) {
-                      throw new Error(`Network response was not ok: ${response.statusText}`);
-                    }
-                }
-               return response.json();
-            })
-            .then(data => {
-                console.log('Success:', data);
+                });
                 document.getElementById('result').textContent = 'Success: ' + data.message;
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-               document.getElementById('result').textContent = 'Error: ' + error.message;
-            });
-        });
+           } catch(e){
+                 document.getElementById('result').textContent = 'Error: ' + e.message;
+           }
+         });
     </script>
 </body>
 </html>

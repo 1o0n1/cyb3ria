@@ -21,7 +21,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const username = urlParams.get('username');
 
 let ws = null;
-
+let csrfToken = "";
 function connectWebSocket() {
   if (ws) {
       ws.close();
@@ -64,7 +64,7 @@ if (messages) {
             ip: ipAddress,
             mac: macAddress
         };
-        ws.send(JSON.stringify(message));
+         ws.send(JSON.stringify(message));
         input.value = '';
     });
 }

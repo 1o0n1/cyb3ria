@@ -8,8 +8,8 @@ use validator::{Validate, ValidationErrors, ValidationError};
 use log::{info, error, debug};
 use serde::{Deserialize, Serialize};
 use crate::db::{save_user_to_db, find_user_by_username, save_device_to_db, save_session_to_db, find_device_by_ip_mac};
+use crate::utils::generate_csrf_token;
 use std::borrow::Cow;
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RegistrationData {
@@ -24,6 +24,7 @@ pub struct RegistrationData {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RegistrationResponse {
     pub message: String,
+    pub csrf_token: String, // Добавляем CSRF токен
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -36,6 +37,7 @@ pub struct LoginData {
 pub struct LoginResponse {
     pub message: String,
     pub username: String,
+    pub csrf_token: String, // Добавляем CSRF токен
 }
 
 impl Validate for RegistrationData {
@@ -104,14 +106,35 @@ fn map_validation_errors(errors: ValidationErrors) -> String {
     result.trim().to_string()
 }
 
-pub async fn register_handler(registration: RegistrationData, _peer_addr: SocketAddr) -> Result<impl warp::Reply, Rejection> {
+async fn validate_csrf_token(header: Option<String>) -> Result<(), CsrfError> {
+     if let Some(header_token) = header {
+            if !header_token.is_empty(){
+                 return Ok(());
+            }
+     }
+     Err(CsrfError::InvalidToken)
+ }
+
+#[derive(Debug)]
+enum CsrfError {
+    InvalidToken,
+}
+
+impl warp::reject::Reject for CsrfError {}
+
+pub async fn register_handler(registration: RegistrationData,  header: Option<String> , _peer_addr: SocketAddr) -> Result<impl warp::Reply, Rejection> {
     debug!("Received registration request: {:?}", registration);
 
+       let result = validate_csrf_token(header).await;
+          if let Err(e) = result {
+            error!("CSRF validation error: {:?}", e);
+                return  Err(warp::reject::custom(e));
+        }
     // Валидация данных
    if let Err(errors) = registration.validate() {
          error!("Validation errors: {:?}", errors);
          let error_message = map_validation_errors(errors);
-         let response = RegistrationResponse { message: error_message };
+         let response = RegistrationResponse { message: error_message, csrf_token: "".to_string() };
          return Ok(warp::reply::with_status(
              warp::reply::json(&response),
              StatusCode::BAD_REQUEST,
@@ -121,7 +144,7 @@ pub async fn register_handler(registration: RegistrationData, _peer_addr: Socket
 
     if registration.password != registration.repeat_password {
         error!("Passwords do not match.");
-        let response = RegistrationResponse { message: "Passwords do not match.".to_string() };
+        let response = RegistrationResponse { message: "Passwords do not match.".to_string(), csrf_token: "".to_string() };
         return Ok(warp::reply::with_status(
             warp::reply::json(&response),
             StatusCode::BAD_REQUEST,
@@ -132,7 +155,7 @@ pub async fn register_handler(registration: RegistrationData, _peer_addr: Socket
         Ok(hash) => hash,
         Err(e) => {
             error!("Failed to hash password: {}", e);
-            let response = RegistrationResponse { message: "Failed to hash password.".to_string() };
+            let response = RegistrationResponse { message: "Failed to hash password.".to_string(), csrf_token: "".to_string() };
             return Ok(warp::reply::with_status(
                 warp::reply::json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -163,7 +186,9 @@ pub async fn register_handler(registration: RegistrationData, _peer_addr: Socket
                 error!("Failed to save device to database: {}", e);
             }
 
-            let response = RegistrationResponse { message: "User registered successfully".to_string() };
+            let csrf_token = generate_csrf_token();
+
+            let response = RegistrationResponse { message: "User registered successfully".to_string(), csrf_token };
             Ok(warp::reply::with_status(
                 warp::reply::json(&response),
                 StatusCode::OK,
@@ -171,7 +196,7 @@ pub async fn register_handler(registration: RegistrationData, _peer_addr: Socket
         },
         Err(e) => {
             error!("Failed to save user to database: {}", e);
-            let response = RegistrationResponse { message: "Failed to save user to database.".to_string() };
+            let response = RegistrationResponse { message: "Failed to save user to database.".to_string(), csrf_token: "".to_string() };
             Ok(warp::reply::with_status(
                 warp::reply::json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -180,14 +205,18 @@ pub async fn register_handler(registration: RegistrationData, _peer_addr: Socket
     }
 }
 
-pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<impl warp::Reply, Rejection> {
+pub async fn login_handler(login: LoginData,  header: Option<String>,  peer_addr: SocketAddr) -> Result<impl warp::Reply, Rejection> {
     debug!("Received login request: {:?}", login);
-
+        let result = validate_csrf_token(header).await;
+          if let Err(e) = result {
+            error!("CSRF validation error: {:?}", e);
+                return  Err(warp::reject::custom(e));
+        }
     // Валидация данных
    if let Err(errors) = login.validate() {
         error!("Validation errors: {:?}", errors);
         let error_message = map_validation_errors(errors);
-        let response = LoginResponse { message: error_message , username: "".to_string()};
+        let response = LoginResponse { message: error_message , username: "".to_string(), csrf_token: "".to_string()};
          return Ok(warp::reply::with_status(
             warp::reply::json(&response),
            StatusCode::BAD_REQUEST,
@@ -198,7 +227,7 @@ pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<im
         Ok(user) => user,
         Err(e) => {
             error!("Failed to find user: {}", e);
-            let response = LoginResponse { message: "Failed to find user.".to_string(), username: "".to_string() };
+            let response = LoginResponse { message: "Failed to find user.".to_string(), username: "".to_string(), csrf_token: "".to_string() };
             return Ok(warp::reply::with_status(
                 warp::reply::json(&response),
                 StatusCode::UNAUTHORIZED,
@@ -208,7 +237,7 @@ pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<im
 
     if !verify(&login.password, &user.password_hash).unwrap_or(false) {
         error!("Invalid password.");
-        let response = LoginResponse { message: "Invalid password.".to_string(), username: "".to_string() };
+        let response = LoginResponse { message: "Invalid password.".to_string(), username: "".to_string(), csrf_token: "".to_string() };
         return Ok(warp::reply::with_status(
             warp::reply::json(&response),
             StatusCode::UNAUTHORIZED,
@@ -230,7 +259,7 @@ pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<im
         },
         Err(e) => {
             error!("Failed to find device: {}", e);
-            let response = LoginResponse { message: "Failed to find device.".to_string(), username: "".to_string() };
+            let response = LoginResponse { message: "Failed to find device.".to_string(), username: "".to_string() , csrf_token: "".to_string() };
             return Ok(warp::reply::with_status(
                 warp::reply::json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -248,9 +277,10 @@ pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<im
     if let Err(e) = save_session_to_db(session).await {
         error!("Failed to save session to database: {}", e);
     }
+    let csrf_token = generate_csrf_token();
 
     info!("User logged in successfully: {}", login.username);
-    let response = LoginResponse { message: "User logged in successfully.".to_string(), username: login.username.to_string() };
+    let response = LoginResponse { message: "User logged in successfully.".to_string(), username: login.username.to_string(), csrf_token };
     Ok(warp::reply::with_status(
         warp::reply::json(&response),
         StatusCode::OK,
@@ -261,11 +291,12 @@ pub async fn login_handler(login: LoginData, peer_addr: SocketAddr) -> Result<im
 pub fn register_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("api")
         .and(warp::path("register"))
+         .and(warp::header::optional::<String>("X-CSRF-Token"))
         .and(warp::body::json())
         .and(warp::addr::remote())
-        .and_then(|registration: RegistrationData, addr: Option<SocketAddr>| async move {
+        .and_then(|header: Option<String>, registration: RegistrationData, addr: Option<SocketAddr>| async move {
             let peer_addr = addr.expect("Failed to get peer address");
-            register_handler(registration, peer_addr).await
+            register_handler(registration,  header, peer_addr).await
         })
 }
 
@@ -273,10 +304,11 @@ pub fn register_route() -> impl Filter<Extract = impl warp::Reply, Error = warp:
 pub fn login_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("api")
         .and(warp::path("login"))
+         .and(warp::header::optional::<String>("X-CSRF-Token"))
         .and(warp::body::json())
         .and(warp::addr::remote())
-        .and_then(|login: LoginData, addr: Option<SocketAddr>| async move {
+        .and_then(|header: Option<String>, login: LoginData, addr: Option<SocketAddr>| async move {
             let peer_addr = addr.expect("Failed to get peer address");
-            login_handler(login, peer_addr).await
+            login_handler(login, header, peer_addr).await
         })
 }

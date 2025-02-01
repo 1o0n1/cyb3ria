@@ -10,73 +10,67 @@
     <h1>Login</h1>
     <form id="loginForm">
         <label for="username">Username:</label><br>
-        <input type="text" id="username" name="username" required title="Username must be between 3 and 16 characters"><br>
-        <small>Username must be between 3 and 16 characters</small><br>
+        <input type="text" id="username" name="username" required><br>
         <label for="password">Password:</label><br>
-        <input type="password" id="password" name="password" required title="Password must be between 6 and 16 characters"><br>
-         <small>Password must be between 6 and 16 characters</small><br>
-        <input type="hidden" id="ipAddress" name="ipAddress">
-        <input type="hidden" id="macAddress" name="macAddress">
+        <input type="password" id="password" name="password" required><br>
         <button type="submit">Login</button>
     </form>
-     <div id="result"></div>
+    <div id="result"></div>
     <script>
-        // Получаем IP-адрес клиента
-        fetch('https://api.ipify.org?format=json')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('ipAddress').value = data.ip;
-            })
-            .catch(error => {
-                console.error('Error fetching IP address:', error);
-            });
+        async function sendRequest(url, method, body) {
+            let csrfToken = localStorage.getItem('csrfToken') || "";
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+            console.log('sendRequest CSRF Token before fetch:', csrfToken);
+            
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Success data:', data);
+                
+                if (data.csrf_token) {
+                    console.log('Saving CSRF Token:', data.csrf_token);
+                    localStorage.setItem('csrfToken', data.csrf_token);
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('Error:', error);
+                throw error;
+            }
+        }
 
-        // MAC-адрес нельзя получить напрямую в браузере, используем заглушку
-        document.getElementById('macAddress').value = '00:00:00:00:00:00';
-
-        document.getElementById('loginForm').addEventListener('submit', function(event) {
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
             event.preventDefault();
-
+            
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const ipAddress = document.getElementById('ipAddress').value;
-            const macAddress = document.getElementById('macAddress').value;
-
-            fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    username: username, 
-                    password: password,
-                    ip_address: ipAddress,
-                    mac_address: macAddress
-                })
-            })
-          .then(async response => {
-                if (!response.ok) {
-                  try {
-                      const errorData = await response.json();
-                      throw new Error(errorData.message);
-                   } catch (jsonError) {
-                      throw new Error(`Network response was not ok: ${response.statusText}`);
-                    }
-                }
-                return response.json();
-            })
-            .then(data => {
-               console.log('Success:', data);
-                if(data.username) {
-                    window.location.href = `/static/chat.html?username=${encodeURIComponent(data.username)}`;
+            
+            try {
+                 const data = await sendRequest('/api/login', 'POST', { username, password });
+                 if(data.username) {
+                     window.location.href = `/static/chat.html?username=${encodeURIComponent(data.username)}`;
                 } else {
-                    document.getElementById('result').textContent = data.message;
-                }
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-                document.getElementById('result').textContent = 'Error: ' + error.message;
-            });
+                    document.getElementById('result').textContent = 'Error: ' + data.message;
+                 }
+               
+            } catch (e) {
+                document.getElementById('result').textContent = 'Error: ' + e.message;
+            }
         });
     </script>
 </body>

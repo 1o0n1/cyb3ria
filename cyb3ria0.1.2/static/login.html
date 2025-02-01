@@ -13,27 +13,44 @@
         <input type="text" id="username" name="username" required><br>
         <label for="password">Password:</label><br>
         <input type="password" id="password" name="password" required><br>
+        <input type="hidden" id="ipAddress" name="ipAddress">
+        <input type="hidden" id="macAddress" name="macAddress">
         <button type="submit">Login</button>
     </form>
     <div id="result"></div>
     <script>
+        // Получаем IP-адрес клиента
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('ipAddress').value = data.ip;
+            })
+            .catch(error => {
+                console.error('Error fetching IP address:', error);
+            });
+
+        // MAC-адрес нельзя получить напрямую в браузере, используем заглушку
+        document.getElementById('macAddress').value = '00:00:00:00:00:00';
+
         document.getElementById('loginForm').addEventListener('submit', function(event) {
             event.preventDefault();
 
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-
-            if (!username || !password) {
-                document.getElementById('result').textContent = 'Please fill in all fields.';
-                return;
-            }
+            const ipAddress = document.getElementById('ipAddress').value;
+            const macAddress = document.getElementById('macAddress').value;
 
             fetch('/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ username: username, password: password })
+                body: JSON.stringify({ 
+                    username: username, 
+                    password: password,
+                    ip_address: ipAddress,  // Передаём IP-адрес
+                    mac_address: macAddress // Передаём MAC-адрес
+                })
             })
             .then(response => {
                 if (!response.ok) {
@@ -42,8 +59,12 @@
                 return response.json();
             })
             .then(data => {
-                console.log('Success:', data);
-                window.location.href = `/chat.html?username=${encodeURIComponent(username)}`;
+               console.log('Success:', data);
+                if(data.username) {
+                    window.location.href = `/static/chat.html?username=${encodeURIComponent(data.username)}`;
+                } else {
+                    document.getElementById('result').textContent = data.message;
+                }
             })
             .catch((error) => {
                 console.error('Error:', error);

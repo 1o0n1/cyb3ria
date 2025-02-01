@@ -10,13 +10,17 @@
     <h1>Register</h1>
     <form id="registerForm">
         <label for="username">Username:</label><br>
-        <input type="text" id="username" name="username" required><br>
+        <input type="text" id="username" name="username" required title="Username must be between 3 and 16 characters"><br>
+        <small>Username must be between 3 and 16 characters</small><br>
         <label for="password">Password:</label><br>
-        <input type="password" id="password" name="password" required><br>
+        <input type="password" id="password" name="password" required title="Password must be between 6 and 16 characters"><br>
+        <small>Password must be between 6 and 16 characters</small><br>
         <label for="repeatPassword">Repeat Password:</label><br>
-        <input type="password" id="repeatPassword" name="repeatPassword" required><br>
+        <input type="password" id="repeatPassword" name="repeatPassword" required title="Repeat password must be between 6 and 16 characters"><br>
+         <small>Repeat password must be between 6 and 16 characters</small><br>
         <label for="invitationCode">Invitation Code:</label><br>
-        <input type="text" id="invitationCode" name="invitationCode" required><br>
+        <input type="text" id="invitationCode" name="invitationCode" required title="Invitation code must be between 3 and 16 characters"><br>
+        <small>Invitation code must be between 3 and 16 characters</small><br>
         <input type="hidden" id="ipAddress" name="ipAddress">
         <input type="hidden" id="macAddress" name="macAddress">
         <button type="submit">Register</button>
@@ -65,11 +69,16 @@
                     mac_address: macAddress
                 })
             })
-            .then(response => {
+            .then(async response => {
                 if (!response.ok) {
-                    return response.text().then(text => { throw new Error('Network response was not ok: ' + text) });
+                  try {
+                      const errorData = await response.json();
+                      throw new Error(errorData.message);
+                   } catch (jsonError) {
+                      throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
                 }
-                return response.json();
+               return response.json();
             })
             .then(data => {
                 console.log('Success:', data);
@@ -77,7 +86,7 @@
             })
             .catch((error) => {
                 console.error('Error:', error);
-                document.getElementById('result').textContent = 'Error: ' + error.message;
+               document.getElementById('result').textContent = 'Error: ' + error.message;
             });
         });
     </script>

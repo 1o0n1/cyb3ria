@@ -10,14 +10,16 @@
     <h1>Login</h1>
     <form id="loginForm">
         <label for="username">Username:</label><br>
-        <input type="text" id="username" name="username" required><br>
+        <input type="text" id="username" name="username" required title="Username must be between 3 and 16 characters"><br>
+        <small>Username must be between 3 and 16 characters</small><br>
         <label for="password">Password:</label><br>
-        <input type="password" id="password" name="password" required><br>
+        <input type="password" id="password" name="password" required title="Password must be between 6 and 16 characters"><br>
+         <small>Password must be between 6 and 16 characters</small><br>
         <input type="hidden" id="ipAddress" name="ipAddress">
         <input type="hidden" id="macAddress" name="macAddress">
         <button type="submit">Login</button>
     </form>
-    <div id="result"></div>
+     <div id="result"></div>
     <script>
         // Получаем IP-адрес клиента
         fetch('https://api.ipify.org?format=json')
@@ -48,13 +50,18 @@
                 body: JSON.stringify({ 
                     username: username, 
                     password: password,
-                    ip_address: ipAddress,  // Передаём IP-адрес
-                    mac_address: macAddress // Передаём MAC-адрес
+                    ip_address: ipAddress,
+                    mac_address: macAddress
                 })
             })
-            .then(response => {
+          .then(async response => {
                 if (!response.ok) {
-                    return response.text().then(text => { throw new Error('Network response was not ok: ' + text) });
+                  try {
+                      const errorData = await response.json();
+                      throw new Error(errorData.message);
+                   } catch (jsonError) {
+                      throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
                 }
                 return response.json();
             })

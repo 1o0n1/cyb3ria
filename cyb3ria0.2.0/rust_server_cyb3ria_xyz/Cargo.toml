@@ -11,11 +11,12 @@ futures = "0.3"
 log = "0.4"
 env_logger = "0.9"
 dotenv = "0.15"
-tokio-postgres = { version = "0.7", features = ["with-uuid-1"] } # Добавлена поддержка UUID
+tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["serde", "v4"] } # Добавлена поддержка serde
+uuid = { version = "1.0", features = ["serde", "v4"] }
 bcrypt = "0.14"
 ipnetwork = "0.20"
 chrono = { version = "0.4", features = ["serde"] }
 bytes = "1"
+validator = "0.16"
